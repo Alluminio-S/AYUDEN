@@ -38,6 +38,10 @@ var bombs;
 var platforms;
 var cursors;
 
+// --- Sistema de salto ---
+var jumpCount = 0; 
+var maxJumps = 2;
+
 var score = 0;
 var scoreText;
 
@@ -61,6 +65,7 @@ function create ()
 
     this.add.image(400, 300, 'sky');
 
+    // High score guardado
     let savedHigh = localStorage.getItem("highScore");
     highScore = savedHigh ? parseInt(savedHigh) : 0;
 
@@ -76,7 +81,7 @@ function create ()
     player.setBounce(0.2);
     player.setCollideWorldBounds(true);
 
-    // Animaciones del jugador
+    // Animaciones
     this.anims.create({
         key: 'left',
         frames: this.anims.generateFrameNumbers('dude', { start: 0, end: 3 }),
@@ -97,7 +102,6 @@ function create ()
         repeat: -1
     });
 
-    // Controles
     cursors = this.input.keyboard.createCursorKeys();
 
     // Estrellas
@@ -119,14 +123,15 @@ function create ()
     highScoreText = this.add.text(16, 50, 'High Score: ' + highScore, { fontSize: '28px', fill: '#000' });
 
     // Colisiones
-    this.physics.add.collider(player, platforms);
+    this.physics.add.collider(player, platforms, function() {
+        // Cada vez que toca el piso → resetear saltos
+        jumpCount = 0;
+    });
     this.physics.add.collider(stars, platforms);
     this.physics.add.collider(bombs, platforms);
 
-    // Recolectar estrellas
     this.physics.add.overlap(player, stars, collectStar, null, this);
 
-    // Tocar bomba reinicia escena
     this.physics.add.collider(player, bombs, hitBomb, null, this);
 }
 
@@ -148,9 +153,13 @@ function update ()
         player.anims.play('turn');
     }
 
-    if (cursors.up.isDown && player.body.touching.down)
+    // --- Doble salto ---
+    if (cursors.up.isDown && Phaser.Input.Keyboard.JustDown(cursors.up))
     {
-        player.setVelocityY(-330);
+        if (jumpCount < maxJumps) {
+            player.setVelocityY(-330);
+            jumpCount++;
+        }
     }
 }
 
@@ -158,18 +167,22 @@ function collectStar (player, star)
 {
     star.disableBody(true, true);
 
-    // Sumar puntaje
     score += 10;
     scoreText.setText('Score: ' + score);
 
-    // no estrellas = bomba
+    // --- High score EN TIEMPO REAL ---
+    if (score > highScore) {
+        highScore = score;
+        localStorage.setItem("highScore", highScore);
+        highScoreText.setText('High Score: ' + highScore);
+    }
+
     if (stars.countActive(true) === 0)
     {
         stars.children.iterate(function (child) {
             child.enableBody(true, child.x, 0, true, true);
         });
 
-        // Crear bomba desde arriba
         var x = Phaser.Math.Between(0, 800);
         var bomb = bombs.create(x, 16, 'bomb');
         bomb.setBounce(1);
@@ -180,14 +193,6 @@ function collectStar (player, star)
 
 function hitBomb (player, bomb)
 {
-    // Guardar High Score si se supera
-    let savedHighScore = parseInt(localStorage.getItem("highScore")) || 0;
-
-    if (score > savedHighScore) {
-        localStorage.setItem("highScore", score);
-    }
-
-    // Reiniciar escena
     this.scene.restart();
 }
 
